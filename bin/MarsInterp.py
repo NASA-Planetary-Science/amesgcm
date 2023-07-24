@@ -11,11 +11,12 @@ import re         # string matching module to handle time_of_day_XX
 # ==========
 from amescap.FV3_utils import fms_press_calc, fms_Z_calc, vinterp, find_n, polar2XYZ, interp_KDTree, axis_interp
 from amescap.Script_utils import check_file_tape, prYellow, prRed, prCyan, prGreen, prPurple, print_fileContent
+from amescap.Script_utils import read_variable_dict_amescap_profile
 from amescap.Script_utils import section_content_amescap_profile, find_tod_in_diurn, filter_vars, find_fixedfile, ak_bk_loader
 from amescap.Ncdf_wrapper import Ncdf
 # ==========
 
-# Attempt to import specific scientic modules that may or may not 
+# Attempt to import specific scientic modules that may or may not
 # be included in the default Python installation on NAS.
 try:
     import matplotlib
@@ -123,7 +124,7 @@ def main():
                                3.0e+01, 2.0e+01, 1.0e+01, 7.0e+00, 5.0e+00, 3.0e+00, 2.0e+00,
                                1.0e+00, 5.0e-01, 3.0e-01, 2.0e-01, 1.0e-01, 5.0e-02, 3.0e-02,
                                1.0e-02])
-    
+
     # =========================== zstd ===========================
     elif interp_type == 'zstd':
         longname_txt    = 'standard altitude'
@@ -149,13 +150,14 @@ def main():
         name_fixed = find_fixedfile(file_list[0])
         try:
             f_fixed = Dataset(name_fixed, 'r')
-            zsurf = f_fixed.variables['zsurf'][:]
+            model=read_variable_dict_amescap_profile(f_fixed)
+            zsurf = f_fixed.variables[model.zsurf][:]
             f_fixed.close()
         except FileNotFoundError:
             prRed('***Error*** Topography (zsurf) is required for interpolation to zstd, but the')
             prRed('file %s cannot be not found' % (name_fixed))
             exit()
-    
+
     # =========================== zagl ===========================
     elif interp_type == 'zagl':
         longname_txt    = 'altitude above ground level'
@@ -203,10 +205,10 @@ def main():
         fNcdf = Dataset(ifile, 'r', format='NETCDF4_CLASSIC')
         # Load pk, bk, and ps for 3D pressure field calculation.
         # Read the pk and bk for each file in case the vertical resolution has changed.
-
+        model=read_variable_dict_amescap_profile(fNcdf)
         ak, bk = ak_bk_loader(fNcdf)
 
-        ps = np.array(fNcdf.variables['ps'])
+        ps = np.array(fNcdf.variables[model.ps])
 
         if len(ps.shape) == 3:
             do_diurn = False
@@ -221,7 +223,7 @@ def main():
             # Same for 'diurn' files, e.g (time, time_of_day_XX, lev, lat, lon) >>> (lev, time_of_day_XX, time, lat, lon)
             permut = [2, 1, 0, 3, 4]
             # ( 0 1 2 3 4) >>> ( 2 1 0 3 4 )
-        
+
         # Compute levels in the file, these are permutted arrays
         # Suppress "divide by zero" error
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -230,12 +232,12 @@ def main():
                 L_3D_P = fms_press_calc(ps, ak, bk, lev_type='full')
 
             elif interp_type == 'zagl':
-                temp = fNcdf.variables['temp'][:]
+                temp = fNcdf.variables[model.temp][:]
                 L_3D_P = fms_Z_calc(ps, ak, bk, temp.transpose(
                     permut), topo=0., lev_type='full')
 
             elif interp_type == 'zstd':
-                temp = fNcdf.variables['temp'][:]
+                temp = fNcdf.variables[model.temp][:]
                 # Expand the 'zsurf' array to the 'time' dimension
                 zflat = np.repeat(zsurf[np.newaxis, :], ps.shape[0], axis=0)
                 if do_diurn:
@@ -261,10 +263,10 @@ def main():
             fnew.copy_Ncaxis_with_content(fNcdf.variables['grid_xt'])
             fnew.copy_Ncaxis_with_content(fNcdf.variables['grid_yt'])
         else:
-            fnew.copy_Ncaxis_with_content(fNcdf.variables['lon'])
-            fnew.copy_Ncaxis_with_content(fNcdf.variables['lat'])
+            fnew.copy_Ncaxis_with_content(fNcdf.variables[model.lon])
+            fnew.copy_Ncaxis_with_content(fNcdf.variables[model.lat])
 
-        fnew.copy_Ncaxis_with_content(fNcdf.variables['time'])
+        fnew.copy_Ncaxis_with_content(fNcdf.variables[model.time])
 
         if do_diurn:
             fnew.copy_Ncaxis_with_content(fNcdf.variables[tod_name])
@@ -310,7 +312,7 @@ def main():
                                           long_name_txt, units_txt)
             else:
 
-                if ivar not in ['time', 'pfull', 'lat', 'lon', 'phalf', 'ak', 'pk', 'bk', 'pstd', 'zstd', 'zagl', tod_name, 'grid_xt', 'grid_yt']:
+                if ivar not in [model.time, model.pfull, model.lat, model.lon, 'phalf', 'ak', 'pk', 'bk', model.pstd, model.zstd, model.zagl, tod_name, 'grid_xt', 'grid_yt']:
                     #print("\r Copying over: %s..."%(ivar), end='')
                     prCyan("Copying over: %s..." % (ivar))
                     fnew.copy_Ncvar(fNcdf.variables[ivar])

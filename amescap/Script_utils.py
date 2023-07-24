@@ -1014,3 +1014,90 @@ def ak_bk_loader(fNcdf):
             exit()
 
     return ak,bk
+
+def read_variable_dict_amescap_profile(f_Ncdf=None):
+    '''
+    Inspect a Netcdf file and return the name of the variables and dimensions based on the content of ~/.amescap_profile.
+    Calling this function allows to remove hard-coded calls in CAP.
+    For example, to f.variables['ucomp'] is replaced by f.variables[model.ucomp], with model.ucomp taking the values of'ucomp', 'U'
+    Args:
+        f_Ncdf: An opened Netcdf file object
+    Returns:
+        model: a dictionary with the dimensions and variables, e.g. model.ucomp='U' or model.dim_lat='latitudes'
+
+    ***NOTE***
+    The defaut names for variables are defined in () parenthesis in  ~/.amescap_profile :
+    'X direction wind        [m/s]                   (ucomp)>'
+
+    The defaut names for dimensions are defined in {} parenthesis in  ~/.amescap_profile :
+    Ncdf Y latitude dimension    [integer]          {lat}>lats
+
+    The dimensions (lon,lat,pfull,pstd) are loaded in the dictionary as model.dim_lon, model.dim_lat
+    '''
+
+    if f_Ncdf is not None:
+        var_list_Ncdf=list(f_Ncdf.variables.keys())
+        dim_list_Ncdf=list(f_Ncdf.dimensions.keys())
+    else:
+        var_list_Ncdf=[]
+        dim_list_Ncdf=[]
+
+    all_lines=section_content_amescap_profile('Variable dictionary')
+    lines=all_lines.split('\n')
+    #Remove empty lines:
+    while("" in lines):lines.remove("")
+
+    #Initialize model
+    class model(object):
+        pass
+    MOD=model()
+
+    #Read through all lines in the Variable dictionary section of amesgcm_profile:
+    for il in lines:
+        var_list=[]
+        #e.g. 'X direction wind [m/s]                          (ucomp)>U,u'
+        left,right=il.split('>') #Split on either side of '>'
+
+        #If using {var}, current entry is a dimension. If using (var), it is a variable
+        if '{' in left:
+            sep1='{';sep2='}';type_input='dimension'
+        elif '(' in left:
+            sep1='(';sep2=')';type_input='variable'
+
+        # First get 'ucomp' from  'X direction wind [m/s]      (ucomp)
+        _,tmp=FV3_var=left.split(sep1)
+        FV3_var=tmp.replace(sep2,'').strip() #THIS IS THE FV3 NAME OF THE CURRENT VARIABLE
+        #Then, get the list of variable on the righ-hand side, e.g.  'U,u'
+        all_vars=right.split(',')
+        for ii in all_vars:
+            var_list.append(ii.strip())  #var_list IS A LIST OF POTENTIAL CORRESPONDING VARIABLES
+        #Set the attribute to the dictionary
+        #If the list is empty, e.g just [''], use the default FV3 variable presents in () or {}
+        if len(var_list)==1 and var_list[0]=='':var_list[0]=FV3_var #var_list IS A LIST OF POTENTIAL CORRESPONDING VARIABLES
+        found_list=[]
+
+        #Place the input in the appropriate varialbe () or dimension {} dictionary
+        #print('var_list>>>',var_list)
+        if type_input=='variable':
+            for ivar in var_list:
+                if ivar in var_list_Ncdf:found_list.append(ivar)
+
+            if len(found_list)==0:
+                setattr(MOD,FV3_var,FV3_var)
+            elif  len(found_list)==1:
+                setattr(MOD,FV3_var,found_list[0])
+            else:
+                setattr(MOD,FV3_var,found_list[0])
+                prYellow('''***Warning*** more than one possible variable '%s' found in file: %s'''%(FV3_var,found_list))
+        if type_input=='dimension':
+            for ivar in var_list:
+                if ivar in dim_list_Ncdf:found_list.append(ivar)
+            if len(found_list)==0:
+                setattr(MOD,'dim_'+FV3_var,FV3_var)
+            elif  len(found_list)==1:
+                setattr(MOD,'dim_'+FV3_var,found_list[0])
+            else:
+                setattr(MOD,'dim_'+FV3_var,found_list[0])
+                prYellow('''***Warning*** more than one possible dimension '%s' found in file: %s'''%(FV3_var,found_list))
+
+    return MOD
