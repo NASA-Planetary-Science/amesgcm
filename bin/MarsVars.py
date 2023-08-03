@@ -622,14 +622,15 @@ def main():
                 print('Processing: %s...' % (ivar))
                 try:
                     fileNC = Dataset(ifile, 'a', format='NETCDF4_CLASSIC')
+                    model=read_variable_dict_amescap_profile(fileNC)
                     f_type, interp_type = FV3_file_type(fileNC)
                     # Load ak and bk for pressure calculation. Usually required.
-                    if interp_type == 'pfull':
+                    if interp_type == model.pfull:
                         ak, bk = ak_bk_loader(fileNC)
                     # 'temp' and 'ps' always required
                     # Get dimension
-                    dim_out = fileNC.variables['temp'].dimensions
-                    temp = fileNC.variables['temp'][:]
+                    dim_out = fileNC.variables[model.temp].dimensions
+                    temp = fileNC.variables[model.temp][:]
                     shape_out = temp.shape
                     if f_type == 'diurn':
                         # [time, tod, lev, lat, lon] -> [lev, tod, time, lat, lon] -> [time, tod, lev, lat, lon]
@@ -651,15 +652,15 @@ def main():
                     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
                     # 'level', 'ps', and 'p_3d' are often required.
-                    if interp_type == 'pfull':
-                        lev  = fileNC.variables['pfull'][:]
-                        ps   = fileNC.variables['ps'][:]
+                    if interp_type == model.pfull:
+                        lev  = fileNC.variables[model.pfull][:]
+                        ps   = fileNC.variables[model.ps][:]
                         p_3D = compute_p_3D(ps, ak, bk, shape_out)
 
                     # If file interpolated to 'pstd', calculate the 3D pressure field.
                     # This is quick and easy:
-                    elif interp_type == 'pstd':
-                        lev = fileNC.variables['pstd'][:]
+                elif interp_type == model.pstd:
+                        lev = fileNC.variables[model.pstd][:]
                         reshape_shape = [1 for i in range(
                             0, len(shape_out))]  # (0 1 2 3)
                         reshape_shape[lev_axis] = len(lev)  # e.g [1, 28, 1, 1]

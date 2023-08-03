@@ -11,7 +11,7 @@ import sys        # system command
 
 # ==========
 from amescap.Script_utils import check_file_tape, prYellow, prRed, prCyan, prGreen, prPurple
-from amescap.Script_utils import section_content_amescap_profile, print_fileContent, print_varContent, FV3_file_type, find_tod_in_diurn
+from amescap.Script_utils import section_content_amescap_profile, print_fileContent, print_varContent, FV3_file_type, find_tod_in_diurn,read_variable_dict_amescap_profile
 from amescap.Script_utils import wbr_cmap, rjw_cmap, dkass_temp_cmap, dkass_dust_cmap
 from amescap.FV3_utils import lon360_to_180, lon180_to_360, UT_LTtxt, area_weights_deg
 from amescap.FV3_utils import add_cyclic, azimuth2cart, mollweide2cart, robin2cart, ortho2cart

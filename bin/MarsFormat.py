@@ -6,7 +6,7 @@ import numpy as np
 import xarray as xr
 from netCDF4 import Dataset
 import os
-from amescap.Script_utils import prCyan,prRed
+from amescap.Script_utils import prCyan,prRed,read_variable_dict_amescap_profile,prYellow
 from amescap.FV3_utils import layers_mid_point_to_boundary
 
 xr.set_options(keep_attrs=True)
@@ -38,6 +38,11 @@ parser.add_argument('-legacy', '--legacy', nargs='+',
                     help=argparse.SUPPRESS)
 
 def main():
+
+   if not (parser.parse_args().marswrf or parser.parse_args().openmars or parser.parse_args().legacy):
+         prYellow(''' ***Notice***  No operation requested. Use '-marswrf', '-openmars' or  '-legacy ''')
+         exit()  # Exit cleanly
+
    path2data = os.getcwd()
    # Open a single File
    file_list=parser.parse_args().input_file
@@ -51,6 +56,12 @@ def main():
       fullnameOUT = fullnameIN[:-3]+'_atmos_daily.nc'
 
       print('Processing...')
+      #Load model variables,dimensions
+      fNcdf=Dataset(fullnameIN,'r')
+      model=read_variable_dict_amescap_profile(fNcdf)
+      fNcdf.close()
+      prCyan('Reading model attributes from ~.amescap_profile:')
+      prCyan(vars(model)) #Print attribute
       #dataDIR = path+filename+'.nc'
       DS = xr.open_dataset(fullnameIN, decode_times=False)
 
@@ -80,8 +91,8 @@ def main():
          # Define Coordinates for New DataFrame
          #==================================================================
          time        = DS.XTIME/ 60/ 24         # minutes since simulation start [m]
-         lat = DS.XLAT[0,:,0]
-         lon2D = DS.XLONG[0,:]
+         lat = DS[model.lat][0,:,0]
+         lon2D = DS[model.lon][0,:]
          lon = np.squeeze(lon2D[0,:])
 
          # Derive half and full reference pressure levels (Pa)
@@ -99,19 +110,19 @@ def main():
          try:
             pfull3D = DS.P_TOP + DS.PB[0,:] # perturb. pressure + base state pressure, time-invariant
          except NameError:
-            pfull3D = DS.PSFC[:,:jmax,:lmax] * DS.ZNU[:,:pmax]
+            pfull3D = DS[model.ps][:,:jmax,:lmax] * DS.ZNU[:,:pmax]
 
          #==================================================================
          # Interpolate U, V, W, Zfull onto Regular Mass Grid (from staggered)
          #==================================================================
          # For variables staggered x (lon) [t,z,y,x'] -> regular mass grid [t,z,y,x]:
-         ucomp = 0.5 * (DS.U[..., :-1] + DS.U[..., 1:])
+         ucomp = 0.5 * (DS[model.ucomp][..., :-1] + DS[model.ucomp][..., 1:])
 
          # For variables staggered y (lat) [t,z,y',x] -> regular mass grid [t,z,y,x]:
-         vcomp = 0.5 * (DS.V[:,:,:-1,:] + DS.V[:,:,1:,:])
+         vcomp = 0.5 * (DS[model.vcomp][:,:,:-1,:] + DS[model.vcomp][:,:,1:,:])
 
          # For variables staggered p/z (height) [t,z',y,x] -> regular mass grid [t,z,y,x]:
-         w = 0.5 * (DS.W[:,:-1,:,:] + DS.W[:,1:,:,:])
+         w = 0.5 * (DS[model.w][:,:-1,:,:] + DS[model.w][:,1:,:,:])
 
          # ALSO INTERPOLATE TO FIND *LAYER* HEIGHTS ABOVE THE SURFACE (i.e., above topography; m)
          zfull3D = 0.5 * (zagl_lvl[:,:-1,:,:] + zagl_lvl[:,1:,:,:])
@@ -133,22 +144,22 @@ def main():
          #==================================================================
          # Create New DataFrame
          #==================================================================
-         coords = {'time': np.array(time), 'phalf':np.array(phalf),'pfull': np.array(pfull), 'lat': np.array(lat), 'lon': np.array(lon)}  # Coordinates dictionary
+         coords = {model.dim_time: np.array(time), model.dim_phalf:np.array(phalf),model.dim_pfull: np.array(pfull), model.dim_lat: np.array(lat), model.dim_lon: np.array(lon)}  # Coordinates dictionary
 
          archive_vars = {
-            'ak' :         [ak, ['phalf'],'pressure part of the hybrid coordinate','Pa'],
-            'bk' :         [bk, ['phalf'],'vertical coordinate sigma value','none'],
-            'areo' :       [DS.L_S, ['time'],'solar longitude','degree'],
-            'ps' :         [DS.PSFC, ['time','lat','lon'],'surface pressure','Pa'],
-            'zsurf':       [DS.HGT[0,:],['lat','lon'],'surface height','m'],
-            'ucomp':       [ucomp, ['time', 'pfull', 'lat', 'lon'],'zonal winds','m/sec'],
-            'vcomp':       [vcomp, ['time', 'pfull', 'lat', 'lon'],'meridional winds','m/sec'],
-            'w':           [w, ['time', 'pfull', 'lat', 'lon'],'vertical winds','m/s'],
-            'pfull3D':     [pfull3D, ['time', 'pfull', 'lat', 'lon'],'pressure','Pa'],
-            'temp':        [temp, ['time', 'pfull', 'lat', 'lon'],'temperature','K'],
-            'h2o_ice_sfc': [DS.H2OICE, ['time','lat','lon'],'Surface H2O Ice','kg/m2'],
-            'co2_ice_sfc': [DS.CO2ICE, ['time','lat','lon'],'Surface CO2 Ice','kg/m2'],
-            'ts':          [DS.TSK, ['time','lat','lon'],'surface temperature','K'],
+            'ak' :         [ak, [model.dim_phalf],'pressure part of the hybrid coordinate','Pa'],
+            'bk' :         [bk, [model.dim_phalf],'vertical coordinate sigma value','none'],
+            model.areo :   [DS[model.areo], [model.dim_time],'solar longitude','degree'],
+            model.ps :     [DS[model.ps], [model.dim_time,model.dim_lat,model.dim_lon],'surface pressure','Pa'],
+            model.zsurf:   [DS[model.zsurf][0,:],['lat','lon'],'surface height','m'],
+            model.ucomp:   [ucomp, [model.dim_time,model.dim_pfull,model.dim_lat,model.dim_lon],'zonal winds','m/sec'],
+            model.vcomp:   [vcomp, [model.dim_time,model.dim_pfull,model.dim_lat,model.dim_lon],'meridional winds','m/sec'],
+            model.w:       [w, [model.dim_time,model.dim_pfull,model.dim_lat,model.dim_lon],'vertical winds','m/s'],
+            'pfull3D':     [pfull3D, [model.dim_time,model.dim_pfull,model.dim_lat,model.dim_lon],'pressure','Pa'],
+            model.temp:    [temp, [model.dim_time,model.dim_pfull,model.dim_lat,model.dim_lon],'temperature','K'],
+            'h2o_ice_sfc': [DS.H2OICE, [model.dim_time,model.dim_lat,model.dim_lon],'Surface H2O Ice','kg/m2'],
+            'co2_ice_sfc': [DS.CO2ICE, [model.dim_time,model.dim_lat,model.dim_lon],'Surface CO2 Ice','kg/m2'],
+            model.ts:      [DS[model.ts], [model.dim_time,model.dim_lat,model.dim_lon],'surface temperature','K'],
          }
 
 
@@ -167,11 +178,11 @@ def main():
          # Define Coordinates for New DataFrame
          #==================================================================
          ref_press=720 #TODO this is added on to create ak/bk
-         time        = DS.time         # minutes since simulation start [m]
-         lat = DS.lat
-         lon = DS.lon
+         time        = DS[model.dim_time]         # minutes since simulation start [m]
+         lat = DS[model.dim_lat]  #Replace DS.lat
+         lon = DS[model.dim_lon]
          # Derive half and full reference pressure levels (Pa)
-         pfull = DS.lev*ref_press
+         pfull = DS[model.dim_pfull]*ref_press
 
 
          #==================================================================
@@ -180,7 +191,7 @@ def main():
 
          #DS.expand_dims({'p_half':len(pfull)+1})
          #Compute sigma values. Swap the sigma array upside down twice  with [::-1] since the layers_mid_point_to_boundary() needs sigma[0]=0, sigma[-1]=1) and then to reorganize the array in the original openMars format with sigma[0]=1, sigma[-1]=0
-         DS['bk'] = layers_mid_point_to_boundary(DS.lev[::-1],1.)[::-1]
+         DS['bk'] = layers_mid_point_to_boundary(DS[model.dim_pfull][::-1],1.)[::-1]
          DS['ak'] = np.zeros(len(pfull)+1) #Pure sigma model, set bk to zero
          phalf= np.array(DS['ak']) + ref_press*np.array(DS['bk'])  #compute phalf
 
@@ -189,20 +200,20 @@ def main():
          # Make New DataFrame
          #==================================================================
 
-         coords = {'time': np.array(time), 'phalf': np.array(phalf), 'pfull': np.array(pfull), 'lat':np.array(lat), 'lon': np.array(lon)}
+         coords = {model.dim_time: np.array(time), model.dim_phalf: np.array(phalf), model.dim_pfull: np.array(pfull), model.dim_lat:np.array(lat), model.dim_lon: np.array(lon)}
 
          #Variable to archive [name, values, dimensions, longname,units]
          archive_vars = {
-         'bk' :          [DS.bk, ['phalf'],'vertical coordinate sigma value','none'],
-         'ak' :          [DS.ak, ['phalf'], 'pressure part of the hybrid coordinate','Pa'],
-         'areo' :        [DS.Ls, ['time'],'solar longitude','degree'],
-         'ps' :          [DS.ps, ['time','lat','lon'],'surface pressure','Pa'],
-         'ucomp':        [DS.u, ['time', 'pfull', 'lat', 'lon'],'zonal winds','m/sec'],
-         'vcomp':        [DS.v, ['time', 'pfull', 'lat', 'lon'],'meridional wind','m/sec'],
-         'temp':         [DS.temp, ['time', 'pfull', 'lat', 'lon'],'temperature','K'],
-         'dust_mass_col':[DS.dustcol, ['time','lat','lon'],'column integration of dust','kg/m2'],
-         'co2_ice_sfc':  [DS.co2ice, ['time','lat','lon'],'surace CO2 ice','kg/m2'],
-         'ts':           [DS.tsurf, ['time','lat','lon'],'Surface Temperature','K']
+         'bk' :          [DS.bk, [model.dim_phalf],'vertical coordinate sigma value','none'],
+         'ak' :          [DS.ak, [model.dim_phalf], 'pressure part of the hybrid coordinate','Pa'],
+         model.areo :       [DS[model.areo], [model.dim_time],'solar longitude','degree'],
+         model.ps :          [DS[model.ps], [model.dim_time,model.dim_lat,model.dim_lon],'surface pressure','Pa'],
+         model.ucomp:        [DS[model.ucomp], [model.dim_time,model.dim_pfull,model.dim_lat,model.dim_lon],'zonal winds','m/sec'],
+         model.vcomp:        [DS[model.vcomp], [model.dim_time,model.dim_pfull,model.dim_lat,model.dim_lon],'meridional wind','m/sec'],
+         model.temp:         [DS[model.temp], [model.dim_time,model.dim_pfull,model.dim_lat,model.dim_lon],'temperature','K'],
+         'dust_mass_col':    [DS.dustcol, [model.dim_time,model.dim_lat,model.dim_lon],'column integration of dust','kg/m2'],
+         'co2_ice_sfc':      [DS.co2ice, [model.dim_time,model.dim_lat,model.dim_lon],'surace CO2 ice','kg/m2'],
+         model.ts:           [DS[model.ts], [model.dim_time,model.dim_lat,model.dim_lon],'Surface Temperature','K']
          }
 
 
@@ -211,13 +222,13 @@ def main():
       #========Create output file (common to all models)=================
       #==================================================================
       archive_coords = {
-      'time':  ['time','days'],
-      'pfull': ['ref full pressure level','Pa'],
-      'lat':   ['latitudes' ,'degrees_N'],
-      'lon':   ['longitudes','degrees_E'],
-      'phalf': ['ref pressure at layer boundaries','Pa']
+      model.time:  ['time','days'],
+      model.pfull: ['ref full pressure level','Pa'],
+      model.lat:   ['latitudes' ,'degrees_N'],
+      model.lon:   ['longitudes','degrees_E'],
+      model.phalf: ['ref pressure at layer boundaries','Pa']
       }
-
+      prYellow(archive_coords)
       # Empty xarray dictionary
       data_vars = {}
       # Assign description and units attributes to the xarray dictionary
@@ -230,7 +241,9 @@ def main():
       DF = xr.Dataset(data_vars, coords=coords)
 
       #Add longname and units attibutes to the coordiate variables
+      prCyan(DF)
       for ivar in archive_coords.keys():
+         print(ivar)
          DF[ivar].attrs['long_name']=archive_coords[ivar][0]
          DF[ivar].attrs['units']=archive_coords[ivar][1]
 
@@ -239,7 +252,9 @@ def main():
       #==================================================================
       # check that vertical grid starts at toa with highest level at surface
       #==================================================================
-      if DF.pfull[0] != DF.pfull.min(): # if toa, lev = 0 is surface then flip
+      #TODO comment: this poses an issue
+
+      if DF[model.dim_pfull][0] != DF[model.dim_pfull].min(): # if toa, lev = 0 is surface then flip
           DF=DF.isel(pfull=slice(None, None, -1)) # regrids DS based on pfull
           DF=DF.isel(phalf=slice(None, None, -1)) #Also flip phalf,ak, bk
 
@@ -247,7 +262,7 @@ def main():
       #==================================================================
       # reorder dimensions
       #==================================================================
-      DF = DF.transpose("phalf","time", "pfull" ,"lat","lon")
+      DF = DF.transpose(model.dim_phalf,model.dim_time, model.dim_pfull ,model.dim_lat,model.dim_lon)
 
 
       #==================================================================
@@ -256,8 +271,8 @@ def main():
       if min(DF.lon)<0:
             tmp = np.array(DF.lon)
             tmp = np.where(tmp<0,tmp+360,tmp)
-            DF=DF.assign_coords({'lon':('lon',tmp,DF.lon.attrs)})
-            DF = DF.sortby("lon")
+            DF=DF.assign_coords({model.dim_lon:(model.dim_lon,tmp,DF.lon.attrs)})
+            DF = DF.sortby(model.dim_lon)
 
       #==================================================================
       # add scalar axis to areo [time, scalar_axis])
@@ -266,8 +281,8 @@ def main():
       # first check if dimensions are correct and don't need to be modified
       if 'scalar_axis' not in inpt_dimlist:           # first see if scalar axis is a dimension
             scalar_axis = DF.assign_coords(scalar_axis=1)
-      if DF.areo.dims != ('time',scalar_axis):
-            DF['areo'] = DF.areo.expand_dims('scalar_axis', axis=1)
+      if DF[model.areo].dims != (model.time,scalar_axis):
+            DF[model.areo] = DF[model.areo].expand_dims('scalar_axis', axis=1)
 
 
 

@@ -2,36 +2,37 @@
 # You may alter any of the above, or define new grid structure using a unique identifier of your choice.
 
 # Model-specific dictionaries for (variables), and {dimensions}
-
+#                                                              OPENMARS           MARSWRF
 <<<<<<<<<<<<<<| Variable dictionary |>>>>>>>>>>>>>
-Ncdf time dimension          [integer]          {time}>
-Ncdf X longitude dimension   [integer]          {lon}>lons,lonla
-Ncdf Y latitude dimension    [integer]          {lat}>
-Ncdf Z reference pressure dimension  [integer]  {pfull}>
+Ncdf time dimension          [integer]          {time}>                           Time
+Ncdf X longitude dimension   [integer]          {lon}>                            west_east
+Ncdf Y latitude dimension    [integer]          {lat}>                            south_north
+Ncdf Z reference pressure dimension  [integer]  {pfull}>        lev               bottom_top
+Ncdf Z layer boundaries dimension     [integer] {phalf}>
 Ncdf Z interpol. pressure dimension  [integer]  {pstd} >
 Ncdf Z interpol. distance dimension  [integer]  {zstd} >
 Ncdf Z interpol. distance above ground [integer]{zagl} >
-time values               [days]                (time) >
-planetocentric longitudes [deg]                 (areo) > Ls, L_S
-longitudes                [deg]                 (lon)  > lons, longitudes
-latitudes                 [deg]                 (lat)  > lats, latitudes
-Z model reference pressure layers  [Pa]         (pfull)>
+time values               [days]                (time) >                             XTime
+planetocentric longitudes [deg]                 (areo) >        Ls,                  L_S
+longitudes                [deg]                 (lon)  >                             XLONG
+latitudes                 [deg]                 (lat)  >                             XLAT
+Z model reference pressure layers  [Pa]         (pfull)>        lev
+Z model pressure layers boundaries [Pa]         (phalf)>
 pressure interpolated layers  [Pa]              (pstd) >
 vertically interpolated layers  [m]             (zstd) >
 vertically interpolated layers above ground  [m](zagl) >
-topography   [m]                                (zsurf)>
-X direction wind        [m/s]                   (ucomp)>
-Y direction wind        [m/s]                   (vcomp)>
-Z direction wind        [m/s]                   (w)    >
+topography   [m]                                (zsurf)>                             HGT
+X direction wind        [m/s]                   (ucomp)>       u,                    U
+Y direction wind        [m/s]                   (vcomp)>       v,                    V
+Z direction wind        [m/s]                   (w)    >                             W
 vertical velocity       [Pa/s]                  (omega)>
 air temperature         [K]                     (temp) >
-surface temperature     [K]                     (ts)   >
-surface pressure        [Pa]                    (ps)   >
+surface temperature     [K]                     (ts)   >        tsurf,             TSK
+surface pressure        [Pa]                    (ps)   >                           PSFC
 potential temperature   [K]                     (theta)>
 water mixing ratio      [kg/kg]                 (vap_mass) > vap_mass_micro
 dust mixing ratio       [kg/kg]                 (dust_mass)> dust_mass_micro
 ice mixing ratio        [kg/kg]                 (ice_mass) > ice_mass_micro
-ice mixing ratio        [kg/kg]                 (blabla) >
 
 
 <<<<<<<<<<<<<<| MarsPlot.py Settings |>>>>>>>>>>>>>
