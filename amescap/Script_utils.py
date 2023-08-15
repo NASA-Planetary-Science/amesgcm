@@ -274,8 +274,10 @@ def FV3_file_type(fNcdf):
     interp_type='unknown'
     tod_name='n/a'
 
+    model=read_variable_dict_amescap_profile(fNcdf)
+
     #If 'time' is not a dimension, assume it is a 'fixed' file
-    if 'time' not in fNcdf.dimensions.keys():f_type='fixed'
+    if model.time not in fNcdf.dimensions.keys():f_type='fixed'
 
     #If 'tod_name_XX' is present as a dimension, it is a diurn file (this is robust)
     try:
@@ -285,11 +287,11 @@ def FV3_file_type(fNcdf):
         pass
 
     dims=fNcdf.dimensions.keys()
-    if 'pfull' in dims: interp_type='pfull'
-    if 'pstd'  in dims: interp_type='pstd'
-    if 'zstd'  in dims: interp_type='zstd'
-    if 'zagl'  in dims: interp_type='zagl'
-    if 'zgrid' in dims: interp_type='zgrid'
+    if model.pfull in dims: interp_type=model.pfull
+    if model.pstd  in dims: interp_type=model.pstd
+    if model.zstd  in dims: interp_type=model.zstd
+    if model.zagl  in dims: interp_type=model.zagl
+    if model.zgrid in dims: interp_type=model.zgrid
     return f_type,interp_type
 
 def alt_FV3path(fullpaths,alt,test_exist=True):
