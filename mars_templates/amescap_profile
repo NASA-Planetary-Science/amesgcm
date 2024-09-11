@@ -2,17 +2,17 @@
 # You may alter any of the above, or define new grid structure using a unique identifier of your choice.
 
 # Model-specific dictionaries for (variables), and {dimensions}
-#                                                              OPENMARS           MARSWRF
+#                                                              OPENMARS           MARSWRF       EMARS
 <<<<<<<<<<<<<<| Variable dictionary |>>>>>>>>>>>>>
 Ncdf time dimension          [integer]          {time}>                           Time
 Ncdf X longitude dimension   [integer]          {lon}>                            west_east
 Ncdf Y latitude dimension    [integer]          {lat}>                            south_north
-Ncdf Z reference pressure dimension  [integer]  {pfull}>        lev               bottom_top
+Ncdf Z reference pressure dimension  [integer]  {pfull}>        lev,              bottom_top
 Ncdf Z layer boundaries dimension     [integer] {phalf}>
 Ncdf Z interpol. pressure dimension  [integer]  {pstd} >
 Ncdf Z interpol. distance dimension  [integer]  {zstd} >
 Ncdf Z interpol. distance above ground [integer]{zagl} >
-time values               [days]                (time) >                             XTime
+time values               [days]                (time) >                             XTIME
 planetocentric longitudes [deg]                 (areo) >        Ls,                  L_S
 longitudes                [deg]                 (lon)  >                             XLONG
 latitudes                 [deg]                 (lat)  >                             XLAT
